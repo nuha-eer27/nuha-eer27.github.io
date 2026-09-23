@@ -238,11 +238,16 @@ svg.deco{display:block}
 /* ==========================================================
    PAGES
    ========================================================== */
-.page.turning{animation:turn .42s ease-out}
-@keyframes turn{
-  from{opacity:0;transform:translateY(14px) rotate(-.6deg)}
-  to{opacity:1;transform:none}
-}
+.paper{perspective:1700px}
+.page{backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.page.leave-next{animation:pageLeaveNext .26s cubic-bezier(.4,0,.7,.3) forwards;transform-origin:0% 50%}
+.page.leave-prev{animation:pageLeavePrev .26s cubic-bezier(.4,0,.7,.3) forwards;transform-origin:100% 50%}
+.page.enter-next{animation:pageEnterNext .42s cubic-bezier(.2,.7,.25,1) both;transform-origin:100% 50%}
+.page.enter-prev{animation:pageEnterPrev .42s cubic-bezier(.2,.7,.25,1) both;transform-origin:0% 50%}
+@keyframes pageLeaveNext{to{transform:rotateY(-96deg);opacity:0}}
+@keyframes pageLeavePrev{to{transform:rotateY(96deg);opacity:0}}
+@keyframes pageEnterNext{from{transform:rotateY(96deg);opacity:0}to{transform:rotateY(0deg);opacity:1}}
+@keyframes pageEnterPrev{from{transform:rotateY(-96deg);opacity:0}to{transform:rotateY(0deg);opacity:1}}
 .page-head{position:relative;padding-bottom:22px;margin-bottom:30px;border-bottom:2px dashed rgba(59,35,32,.5)}
 .page-head .cut{font-size:clamp(44px,8vw,80px);outline:none}
 .page-head .lede{margin-top:10px;max-width:56ch;color:var(--ink-soft);font-size:15.5px}
@@ -1087,15 +1092,17 @@ svg.deco{display:block}
     page.appendChild(nav);
   });
 
+  var FLIP_CLASSES = ['leave-next', 'leave-prev', 'enter-next', 'enter-prev'];
+
   function show(id, byUser) {
     if (ids.indexOf(id) < 0) id = ids[0];
+    var fromIdx = current();
+    var fromEl = pages[fromIdx];
+    var toEl = document.getElementById(id);
+    var doFlip = byUser && !reduce && fromEl && fromEl !== toEl && !fromEl.hidden;
+    var dir = doFlip && (ids.indexOf(id) > fromIdx ? 'next' : 'prev');
 
-    pages.forEach(function (p) {
-      var on = p.id === id;
-      p.hidden = !on;
-      p.classList.remove('turning');
-      if (on && byUser && !reduce) { void p.offsetWidth; p.classList.add('turning'); }
-    });
+    // tab highlight, title and URL update immediately so navigation feels instant
     tabs.forEach(function (t) {
       if (t.dataset.go === id) {
         t.setAttribute('aria-current', 'page');
@@ -1104,15 +1111,32 @@ svg.deco{display:block}
         t.removeAttribute('aria-current');
       }
     });
-
     document.title = (id === 'home' ? '' : label(id) + ' | ') + 'Nuha Mumtahana | Portfolio';
     try { history.replaceState(null, '', '#' + id); } catch (e) { /* preview frames may block this */ }
 
-    if (byUser) {
-      var top = board.getBoundingClientRect().top + window.pageYOffset - 64;
-      if (window.pageYOffset > top) window.scrollTo({ top: top, behavior: reduce ? 'auto' : 'smooth' });
-      var h = document.getElementById(id).querySelector('h1,h2');
-      if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+    function reveal() {
+      pages.forEach(function (p) {
+        if (p !== toEl) { p.hidden = true; FLIP_CLASSES.forEach(function (c) { p.classList.remove(c); }); }
+      });
+      toEl.hidden = false;
+      if (doFlip) {
+        var enterClass = dir === 'next' ? 'enter-next' : 'enter-prev';
+        toEl.classList.add(enterClass);
+        setTimeout(function () { toEl.classList.remove(enterClass); }, 440);
+      }
+      if (byUser) {
+        var top = board.getBoundingClientRect().top + window.pageYOffset - 64;
+        if (window.pageYOffset > top) window.scrollTo({ top: top, behavior: reduce ? 'auto' : 'smooth' });
+        var h = toEl.querySelector('h1,h2');
+        if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+      }
+    }
+
+    if (doFlip) {
+      fromEl.classList.add(dir === 'next' ? 'leave-next' : 'leave-prev');
+      setTimeout(reveal, 260);
+    } else {
+      reveal();
     }
   }
 
